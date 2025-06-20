@@ -3,353 +3,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Widget для Shopify</title>
+    <title>Shopify Product Widget</title>
     <style>
-        body {
+        .widget-container {
             font-family: Arial, sans-serif;
-            margin: 0;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
-            background: #f8f9fa;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .product-card {
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.3s;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+        .product-title {
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+        .product-price {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .variant-select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
         }
         .quantity-input {
             width: 60px;
-            padding: 4px;
+            padding: 8px;
             margin-right: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            text-align: center;
         }
-
-        .widget-container {
-            max-width: 100%;
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .product-item {
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .product-info h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-        }
-
-        .product-info p {
-            margin: 0;
-            color: #666;
-            font-size: 14px;
-        }
-
-        .add-to-cart-btn {
-            background: #007bff;
+        .add-to-cart {
+            background: #5c6ac4;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 15px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            transition: background 0.3s;
         }
-
-        .add-to-cart-btn:hover {
-            background: #0056b3;
+        .add-to-cart:hover {
+            background: #3f4dae;
         }
-
-        .add-to-cart-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .variant-select {
-            padding: 6px;
-            margin-right: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            min-width: 150px;
-        }
-
-        .user-info {
-            background: #e3f2fd;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-
-        .message {
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            font-size: 14px;
-        }
-
-        .success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+        .loading {
+            text-align: center;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
 <div class="widget-container">
-    <div id="user-info" class="user-info" style="display: none;">
-        <strong>Пользователь:</strong> <span id="user-name"></span> (<span id="user-email"></span>)
+    <h2>Наши товары</h2>
+    <div id="product-grid" class="product-grid">
+        <!-- Товары будут загружены сюда -->
+        <div class="loading">Загрузка товаров...</div>
     </div>
-
-    <div id="messages"></div>
-
-    <h2>Товары для добавления в корзину</h2>
-
-    <!-- Тестовые товары -->
-    <div class="product-item">
-        <div class="product-info">
-            <h3>Футболка S, Синяя</h3>
-            <p>Цена: $29.99</p>
-            <p>SKU: TST-001-S-BLUE</p>
-        </div>
-        <div>
-            <select class="variant-select" data-product="test-widget-product-1">
-                <option value="45059216212124" data-sku="TST-001-S-BLUE">S, Синяя - $29.99</option>
-                <option value="45059216244892" data-sku="TST-001-M-BLUE">M, Синяя - $29.99</option>
-            </select>
-            <input type="number" class="quantity-input" value="1" min="1">
-            <button class="add-to-cart-btn" data-product="test-widget-product-1">Добавить в корзину</button>
-        </div>
-    </div>
-
-    <div class="product-item">
-        <div class="product-info">
-            <h3>Кружка Керамическая</h3>
-            <p>Цена: $19.99</p>
-            <p>SKU: TST-002-CERAMIC</p>
-        </div>
-        <div>
-            <select class="variant-select" data-product="test-widget-product-2">
-                <option value="" data-sku="TST-002-CERAMIC">Керамическая - $19.99</option>
-                <option value="" data-sku="TST-002-GLASS">Стеклянная - $24.99</option>
-            </select>
-            <input type="number" class="quantity-input" value="1" min="1">
-            <button class="add-to-cart-btn" data-product="test-widget-product-2">Добавить в корзину</button>
-        </div>
-    </div>
-
-    <div class="product-item">
-        <div class="product-info">
-            <h3>Блокнот 100 страниц</h3>
-            <p>Цена: $12.99</p>
-            <p>SKU: TST-003-100-HARD</p>
-        </div>
-        <div>
-            <select class="variant-select" data-product="test-widget-product-3">
-                <option value="" data-sku="TST-003-100-HARD">100 стр, Твердая обложка - $12.99</option>
-                <option value="" data-sku="TST-003-100-SOFT">100 стр, Мягкая обложка - $9.99</option>
-                <option value="" data-sku="TST-003-200-HARD">200 стр, Твердая обложка - $18.99</option>
-                <option value="" data-sku="TST-003-200-SOFT">200 стр, Мягкая обложка - $15.99</option>
-            </select>
-            <input type="number" class="quantity-input" value="1" min="1">
-            <button class="add-to-cart-btn" data-product="test-widget-product-3">Добавить в корзину</button>
-        </div>
-    </div>
-
-    <div class="product-item">
-        <div class="product-info">
-            <h3>Стикеры 50 шт</h3>
-            <p>Цена: $7.99</p>
-            <p>SKU: TST-004-50</p>
-        </div>
-        <div>
-            <select class="variant-select" data-product="test-widget-product-4">
-                <option value="" data-sku="TST-004-50">50 штук - $7.99</option>
-                <option value="" data-sku="TST-004-100">100 штук - $14.99</option>
-            </select>
-            <input type="number" class="quantity-input" value="1" min="1">
-            <button class="add-to-cart-btn" data-product="test-widget-product-4">Добавить в корзину</button>
-        </div>
-    </div>
-
-    <div class="product-item">
-        <div class="product-info">
-            <h3>Ручка Синяя</h3>
-            <p>Цена: $2.99</p>
-            <p>SKU: TST-005-BLUE</p>
-        </div>
-        <div>
-            <select class="variant-select" data-product="test-widget-product-5">
-                <option value="" data-sku="TST-005-BLUE">Синяя - $2.99</option>
-                <option value="" data-sku="TST-005-BLACK">Черная - $2.99</option>
-                <option value="" data-sku="TST-005-RED">Красная - $2.99</option>
-            </select>
-            <input type="number" class="quantity-input" value="1" min="1">
-            <button class="add-to-cart-btn" data-product="test-widget-product-5">Добавить в корзину</button>
-        </div>
-    </div>
-
-    <button id="get-cart-btn" style="margin-top: 20px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        Получить содержимое корзины
-    </button>
 </div>
 
 <script>
-    let userData = null;
+    // Конфигурация Shopify Storefront API
+    const shopifyConfig = {
+        storeDomain: 'https://iframe-testgena.myshopify.com/', // Замените на ваш домен
+        storefrontAccessToken: '94163a744c2ca7805ce698f46e56f601', // Ваш Storefront API токен
+        apiVersion: '2025-04' // Версия API
+    };
 
-    // Слушатель сообщений от родительского сайта
-    window.addEventListener("message", function(event) {
-        // Проверяем источник для безопасности
-        if (event.origin !== "https://iframe-testgena.myshopify.com") {
+    // Функция для загрузки товаров
+    async function fetchProducts() {
+        const query = `
+        {
+            products(first: 10) {
+                edges {
+                    node {
+                        id
+                        title
+                        description
+                        handle
+                        variants(first: 10) {
+                            edges {
+                                node {
+                                    id
+                                    title
+                                    price {
+                                        amount
+                                        currencyCode
+                                    }
+                                    availableForSale
+                                    sku
+                                    image {
+                                        url
+                                        altText
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        `;
+
+        try {
+            const response = await fetch(`https://${shopifyConfig.storeDomain}/api/${shopifyConfig.apiVersion}/graphql.json`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
+                },
+                body: JSON.stringify({ query })
+            });
+
+            const data = await response.json();
+            return data.data.products.edges;
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            return [];
+        }
+    }
+
+    // Функция для отображения товаров
+    function renderProducts(products) {
+        const productGrid = document.getElementById('product-grid');
+        productGrid.innerHTML = '';
+
+        if (products.length === 0) {
+            productGrid.innerHTML = '<p>Товары не найдены</p>';
             return;
         }
 
-        const { type, payload } = event.data;
+        products.forEach(({ node: product }) => {
+            if (product.variants.edges.length === 0) return;
 
-        switch (type) {
-            case "user-data":
-                handleUserData(payload);
-                break;
-            case "add-to-cart-success":
-                handleAddToCartSuccess(payload);
-                break;
-            case "add-to-cart-error":
-                handleAddToCartError(payload);
-                break;
-            case "cart-data":
-                handleCartData(payload);
-                break;
-            case "cart-error":
-                handleCartError(payload);
-                break;
-            default:
-                console.log("Неизвестный тип сообщения:", type);
-        }
-    });
+            const productCard = document.createElement('div');
+            productCard.className = 'product-card';
 
-    // Обработка данных пользователя
-    function handleUserData(payload) {
-        userData = payload;
-        const userInfo = document.getElementById('user-info');
-        const userName = document.getElementById('user-name');
-        const userEmail = document.getElementById('user-email');
+            // Основная информация о товаре
+            productCard.innerHTML = `
+                <h3 class="product-title">${product.title}</h3>
+                ${product.variants.edges[0].node.image ?
+                `<img src="${product.variants.edges[0].node.image.url}"
+                          alt="${product.variants.edges[0].node.image.altText || product.title}"
+                          class="product-image">` :
+                '<div class="product-image">No image</div>'}
+                <div class="product-price">
+                    ${product.variants.edges[0].node.price.amount} ${product.variants.edges[0].node.price.currencyCode}
+                </div>
+                <select class="variant-select" data-product="${product.handle}">
+                    ${product.variants.edges.map(({ node: variant }) => `
+                        <option value="${variant.id}"
+                                ${!variant.availableForSale ? 'disabled' : ''}
+                                data-sku="${variant.sku || ''}">
+                            ${variant.title} - ${variant.price.amount} ${variant.price.currencyCode}
+                            ${!variant.availableForSale ? ' (Нет в наличии)' : ''}
+                        </option>
+                    `).join('')}
+                </select>
+                <div>
+                    <input type="number" class="quantity-input" value="1" min="1">
+                    <button class="add-to-cart"
+                            data-product="${product.handle}"
+                            ${!product.variants.edges[0].node.availableForSale ? 'disabled' : ''}>
+                        Добавить в корзину
+                    </button>
+                </div>
+            `;
 
-        if (payload.name && payload.email) {
-            userName.textContent = payload.name;
-            userEmail.textContent = payload.email;
-            userInfo.style.display = 'block';
-        }
-    }
+            productGrid.appendChild(productCard);
+        });
 
-    // Обработка успешного добавления в корзину
-    function handleAddToCartSuccess(payload) {
-        showMessage(payload.message || "Товар добавлен в корзину!", "success");
-        enableAllButtons();
-    }
-
-    // Обработка ошибки добавления в корзину
-    function handleAddToCartError(payload) {
-        showMessage(payload.error || "Ошибка добавления товара", "error");
-        enableAllButtons();
-    }
-
-    // Обработка данных корзины
-    function handleCartData(payload) {
-        console.log("Содержимое корзины:", payload);
-        showMessage(`В корзине ${payload.item_count} товаров на сумму ${payload.total_price / 100} ${payload.currency}`, "success");
-    }
-
-    // Обработка ошибки получения корзины
-    function handleCartError(payload) {
-        showMessage(payload.error || "Ошибка получения корзины", "error");
-    }
-
-    // Показ сообщений
-    function showMessage(message, type) {
-        const messagesContainer = document.getElementById('messages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}`;
-        messageDiv.textContent = message;
-
-        messagesContainer.appendChild(messageDiv);
-
-        // Автоматическое удаление сообщения через 5 секунд
-        setTimeout(() => {
-            messageDiv.remove();
-        }, 5000);
-    }
-
-    // Отключение всех кнопок
-    function disableAllButtons() {
-        const buttons = document.querySelectorAll('.add-to-cart-btn');
-        buttons.forEach(btn => btn.disabled = true);
-    }
-
-    // Включение всех кнопок
-    function enableAllButtons() {
-        const buttons = document.querySelectorAll('.add-to-cart-btn');
-        buttons.forEach(btn => btn.disabled = false);
-    }
-
-    // Обработчики событий
-    document.addEventListener('DOMContentLoaded', function() {
-        // Обработчики кнопок добавления в корзину
-        const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
-        addToCartButtons.forEach(button => {
-            button.addEventListener('click', function() {
+        // Добавляем обработчики событий для кнопок
+        document.querySelectorAll('.add-to-cart').forEach(button => {
+            button.addEventListener('click', async function() {
                 const productHandle = this.dataset.product;
-                const variantSelect = document.querySelector(`select[data-product="${productHandle}"]`);
-                const quantityInput = this.parentElement.querySelector('.quantity-input');
+                const variantSelect = this.closest('.product-card').querySelector('.variant-select');
+                const quantityInput = this.closest('div').querySelector('.quantity-input');
+
+                const variantId = variantSelect.value;
                 const quantity = parseInt(quantityInput.value) || 1;
-
-                // Получаем выбранный вариант
                 const selectedOption = variantSelect.options[variantSelect.selectedIndex];
-                const variantId = selectedOption.value;
-                const sku = selectedOption.dataset.sku;
 
-                // Если variant ID не установлен, показываем сообщение
                 if (!variantId) {
-                    showMessage(`Пожалуйста, сначала импортируйте товары в Shopify и обновите variant ID для SKU: ${sku}`, "error");
+                    alert('Пожалуйста, выберите вариант товара');
                     return;
                 }
 
-                // Отключаем кнопки во время запроса
-                disableAllButtons();
+                this.disabled = true;
+                this.textContent = 'Добавляем...';
 
-                // Отправляем сообщение родительскому сайту
-                window.parent.postMessage({
-                    type: "add-to-cart",
-                    payload: {
-                        variantId: variantId,
-                        quantity: quantity,
-                        properties: {
-                            "_iframe_source": "test-widget",
-                            "_customer": userData?.email || "guest",
-                            "_sku": sku,
-                            "_product_handle": productHandle
-                        }
-                    }
-                }, "https://iframe-testgena.myshopify.com");
+                try {
+                    await addToCart(variantId, quantity);
+                    alert('Товар добавлен в корзину!');
+                } catch (error) {
+                    console.error('Error adding to cart:', error);
+                    alert('Ошибка при добавлении в корзину');
+                } finally {
+                    this.disabled = false;
+                    this.textContent = 'Добавить в корзину';
+                }
             });
         });
+    }
 
-        // Обработчик кнопки получения корзины
-        document.getElementById('get-cart-btn').addEventListener('click', function() {
-            window.parent.postMessage({
-                type: "get-cart",
-                payload: {}
-            }, "https://iframe-testgena.myshopify.com");
+    // Функция добавления в корзину
+    async function addToCart(variantId, quantity) {
+        const mutation = `
+        mutation AddToCart($variantId: ID!, $quantity: Int!) {
+            cartLinesAdd(cartId: null, lines: [{ merchandiseId: $variantId, quantity: $quantity }]) {
+                cart {
+                    id
+                    totalQuantity
+                    lines(first: 10) {
+                        edges {
+                            node {
+                                id
+                                quantity
+                                merchandise {
+                                    ... on ProductVariant {
+                                        id
+                                        title
+                                        product {
+                                            title
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        `;
+
+        const response = await fetch(`https://${shopifyConfig.storeDomain}/api/${shopifyConfig.apiVersion}/graphql.json`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
+            },
+            body: JSON.stringify({
+                query: mutation,
+                variables: {
+                    variantId,
+                    quantity
+                }
+            })
         });
+
+        const data = await response.json();
+
+        if (data.errors || data.data.cartLinesAdd.userErrors.length > 0) {
+            const errors = data.errors || data.data.cartLinesAdd.userErrors;
+            throw new Error(errors.map(e => e.message).join(', '));
+        }
+
+        return data.data.cartLinesAdd.cart;
+    }
+
+    // Инициализация виджета
+    document.addEventListener('DOMContentLoaded', async () => {
+        const products = await fetchProducts();
+        renderProducts(products);
     });
 </script>
 </body>
