@@ -5,14 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shopify Cart Widget</title>
     <style>
+        /* Стили для виджета */
         .widget-container { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
         .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
         .product-card { border: 1px solid #e1e1e1; border-radius: 8px; padding: 15px; }
         .product-image { width: 100%; height: 200px; object-fit: contain; }
         .add-to-cart { background: #5c6ac4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+
+        /* Стили для мини-корзины */
+        .mini-cart {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            z-index: 1000;
+        }
+        .cart-icon {
+            font-size: 20px;
+            margin-right: 10px;
+        }
+        .cart-count {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
+<!-- Мини-корзина в хедере -->
+<div class="mini-cart">
+    <span class="cart-icon">🛒</span>
+    <span class="cart-count" id="cart-counter">0</span>
+</div>
+
+<!-- Основной контейнер с товарами -->
 <div class="widget-container">
     <h2>Наши товары</h2>
     <div id="product-grid" class="product-grid">
@@ -23,9 +52,9 @@
 <script>
     // 1. Конфигурация Shopify
     const shopifyConfig = {
-        storeDomain: 'iframe-testgena.myshopify.com', // Убрал лишний слэш
+        storeDomain: 'iframe-testgena.myshopify.com',
         storefrontAccessToken: '94163a744c2ca7805ce698f46e56f601',
-        apiVersion: '2024-04' // Использую актуальную версию (2025-04 еще не выпущена)
+        apiVersion: '2024-04'
     };
 
     let currentCartId = null;
@@ -66,6 +95,7 @@
                     cart {
                         id
                         checkoutUrl
+                        totalQuantity
                     }
                 }
             }
@@ -74,10 +104,55 @@
         const result = await shopifyRequest(mutation);
         currentCartId = result.data.cartCreate.cart.id;
         localStorage.setItem('shopifyCartId', currentCartId);
-        return currentCartId;
+        return result.data.cartCreate.cart;
     }
 
-    // 4. Функция добавления в корзину
+    // 4. Функция получения данных корзины
+    async function getCart() {
+        if (!currentCartId) return null;
+
+        const query = `
+            query GetCart($cartId: ID!) {
+                cart(id: $cartId) {
+                    id
+                    totalQuantity
+                    lines(first: 10) {
+                        edges {
+                            node {
+                                quantity
+                                merchandise {
+                                    ... on ProductVariant {
+                                        id
+                                        title
+                                        product {
+                                            title
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+
+        const result = await shopifyRequest(query, { cartId: currentCartId });
+        return result.data.cart;
+    }
+
+    // 5. Функция обновления UI корзины
+    async function updateCartUI() {
+        const cart = await getCart();
+        const counter = document.getElementById('cart-counter');
+
+        if (cart) {
+            counter.textContent = cart.totalQuantity;
+        } else {
+            counter.textContent = '0';
+        }
+    }
+
+    // 6. Функция добавления в корзину
     async function addToCart(variantId, quantity = 1) {
         try {
             if (!currentCartId) {
@@ -93,7 +168,6 @@
                         cart {
                             id
                             totalQuantity
-                            checkoutUrl
                         }
                         userErrors {
                             field
@@ -113,8 +187,8 @@
                 throw new Error(result.data.cartLinesAdd.userErrors[0].message);
             }
 
-            // Перенаправляем на страницу корзины
-            window.top.location.href = result.data.cartLinesAdd.cart.checkoutUrl;
+            // Обновляем UI корзины
+            await updateCartUI();
 
             return result.data.cartLinesAdd.cart;
         } catch (error) {
@@ -130,7 +204,7 @@
         }
     }
 
-    // 5. Функция загрузки товаров
+    // 7. Функция загрузки товаров
     async function loadProducts() {
         const query = `
             {
@@ -171,7 +245,7 @@
         }
     }
 
-    // 6. Функция отрисовки товаров
+    // 8. Функция отрисовки товаров
     function renderProducts(products) {
         const container = document.getElementById('product-grid');
         container.innerHTML = '';
@@ -209,6 +283,11 @@
 
                 try {
                     await addToCart(variantId);
+                    this.textContent = 'Добавлено!';
+                    setTimeout(() => {
+                        this.textContent = 'Добавить в корзину';
+                        this.disabled = false;
+                    }, 2000);
                 } catch (error) {
                     this.textContent = 'Ошибка';
                     setTimeout(() => {
@@ -221,12 +300,16 @@
         });
     }
 
-    // 7. Инициализация при загрузке страницы
+    // 9. Инициализация при загрузке страницы
     document.addEventListener('DOMContentLoaded', async () => {
         // Проверяем сохраненную корзину
         const savedCartId = localStorage.getItem('shopifyCartId');
         if (savedCartId) currentCartId = savedCartId;
 
+        // Загружаем корзину и обновляем UI
+        await updateCartUI();
+
+        // Загружаем и отображаем товары
         try {
             const products = await loadProducts();
             renderProducts(products);
