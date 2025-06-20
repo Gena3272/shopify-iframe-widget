@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Shopify Widget</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 1rem;
+            background: #f9f9f9;
+        }
+        .data {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+<h2>✅ Виджет загружен</h2>
+<div id="data" class="data">Жду данных от Shopify...</div>
+
+<script>
+    window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (data?.type === "user-data") {
+            document.getElementById("data").innerHTML = `
+          <strong>Имя:</strong> ${data.payload.name}<br>
+          <strong>Email:</strong> ${data.payload.email}
+        `;
+        }
+    });
+</script>
+</body>
+</html>
