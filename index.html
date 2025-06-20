@@ -1,37 +1,272 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Shopify Widget</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget для Shopify</title>
     <style>
         body {
-            font-family: sans-serif;
-            padding: 1rem;
-            background: #f9f9f9;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
         }
-        .data {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #fff;
-            border: 1px solid #ccc;
+
+        .widget-container {
+            max-width: 100%;
+            background: white;
             border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .product-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .product-info h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+
+        .product-info p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .add-to-cart-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .add-to-cart-btn:hover {
+            background: #0056b3;
+        }
+
+        .add-to-cart-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .quantity-input {
+            width: 60px;
+            padding: 4px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .user-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
     </style>
 </head>
 <body>
-<h2>✅ Виджет загружен</h2>
-<div id="data" class="data">Жду данных от Shopify...</div>
+<div class="widget-container">
+    <div id="user-info" class="user-info" style="display: none;">
+        <strong>Пользователь:</strong> <span id="user-name"></span> (<span id="user-email"></span>)
+    </div>
+
+    <div id="messages"></div>
+
+    <h2>Товары для добавления в корзину</h2>
+
+    <!-- Пример товаров (замените на реальные данные) -->
+    <div class="product-item">
+        <div class="product-info">
+            <h3>Тестовый товар 1</h3>
+            <p>Цена: $29.99</p>
+        </div>
+        <div>
+            <input type="number" class="quantity-input" value="1" min="1" data-variant="12345678901234567890">
+            <button class="add-to-cart-btn" data-variant="12345678901234567890">Добавить в корзину</button>
+        </div>
+    </div>
+
+    <div class="product-item">
+        <div class="product-info">
+            <h3>Тестовый товар 2</h3>
+            <p>Цена: $49.99</p>
+        </div>
+        <div>
+            <input type="number" class="quantity-input" value="1" min="1" data-variant="12345678901234567891">
+            <button class="add-to-cart-btn" data-variant="12345678901234567891">Добавить в корзину</button>
+        </div>
+    </div>
+
+    <button id="get-cart-btn" style="margin-top: 20px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        Получить содержимое корзины
+    </button>
+</div>
 
 <script>
-    window.addEventListener("message", (event) => {
-        const data = event.data;
-        if (data?.type === "user-data") {
-            document.getElementById("data").innerHTML = `
-          <strong>Имя:</strong> ${data.payload.name}<br>
-          <strong>Email:</strong> ${data.payload.email}
-        `;
+    let userData = null;
+
+    // Слушатель сообщений от родительского сайта
+    window.addEventListener("message", function(event) {
+        // Проверяем источник для безопасности
+        if (event.origin !== "https://iframe-testgena.myshopify.com") {
+            return;
         }
+
+        const { type, payload } = event.data;
+
+        switch (type) {
+            case "user-data":
+                handleUserData(payload);
+                break;
+            case "add-to-cart-success":
+                handleAddToCartSuccess(payload);
+                break;
+            case "add-to-cart-error":
+                handleAddToCartError(payload);
+                break;
+            case "cart-data":
+                handleCartData(payload);
+                break;
+            case "cart-error":
+                handleCartError(payload);
+                break;
+            default:
+                console.log("Неизвестный тип сообщения:", type);
+        }
+    });
+
+    // Обработка данных пользователя
+    function handleUserData(payload) {
+        userData = payload;
+        const userInfo = document.getElementById('user-info');
+        const userName = document.getElementById('user-name');
+        const userEmail = document.getElementById('user-email');
+
+        if (payload.name && payload.email) {
+            userName.textContent = payload.name;
+            userEmail.textContent = payload.email;
+            userInfo.style.display = 'block';
+        }
+    }
+
+    // Обработка успешного добавления в корзину
+    function handleAddToCartSuccess(payload) {
+        showMessage(payload.message || "Товар добавлен в корзину!", "success");
+        enableAllButtons();
+    }
+
+    // Обработка ошибки добавления в корзину
+    function handleAddToCartError(payload) {
+        showMessage(payload.error || "Ошибка добавления товара", "error");
+        enableAllButtons();
+    }
+
+    // Обработка данных корзины
+    function handleCartData(payload) {
+        console.log("Содержимое корзины:", payload);
+        showMessage(`В корзине ${payload.item_count} товаров на сумму ${payload.total_price / 100} ${payload.currency}`, "success");
+    }
+
+    // Обработка ошибки получения корзины
+    function handleCartError(payload) {
+        showMessage(payload.error || "Ошибка получения корзины", "error");
+    }
+
+    // Показ сообщений
+    function showMessage(message, type) {
+        const messagesContainer = document.getElementById('messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+        messageDiv.textContent = message;
+
+        messagesContainer.appendChild(messageDiv);
+
+        // Автоматическое удаление сообщения через 5 секунд
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 5000);
+    }
+
+    // Отключение всех кнопок
+    function disableAllButtons() {
+        const buttons = document.querySelectorAll('.add-to-cart-btn');
+        buttons.forEach(btn => btn.disabled = true);
+    }
+
+    // Включение всех кнопок
+    function enableAllButtons() {
+        const buttons = document.querySelectorAll('.add-to-cart-btn');
+        buttons.forEach(btn => btn.disabled = false);
+    }
+
+    // Обработчики событий
+    document.addEventListener('DOMContentLoaded', function() {
+        // Обработчики кнопок добавления в корзину
+        const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
+        addToCartButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const variantId = this.dataset.variant;
+                const quantityInput = document.querySelector(`input[data-variant="${variantId}"]`);
+                const quantity = parseInt(quantityInput.value) || 1;
+
+                // Отключаем кнопки во время запроса
+                disableAllButtons();
+
+                // Отправляем сообщение родительскому сайту
+                window.parent.postMessage({
+                    type: "add-to-cart",
+                    payload: {
+                        variantId: variantId,
+                        quantity: quantity,
+                        properties: {
+                            "_iframe_source": "test-widget",
+                            "_customer": userData?.email || "guest"
+                        }
+                    }
+                }, "https://iframe-testgena.myshopify.com");
+            });
+        });
+
+        // Обработчик кнопки получения корзины
+        document.getElementById('get-cart-btn').addEventListener('click', function() {
+            window.parent.postMessage({
+                type: "get-cart",
+                payload: {}
+            }, "https://iframe-testgena.myshopify.com");
+        });
     });
 </script>
 </body>
