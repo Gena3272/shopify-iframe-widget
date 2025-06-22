@@ -6,11 +6,54 @@
     <title>Shopify Cart Widget</title>
     <style>
         /* Стили для виджета */
-        .widget-container { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .product-card { border: 1px solid #e1e1e1; border-radius: 8px; padding: 15px; }
-        .product-image { width: 100%; height: 200px; object-fit: contain; }
-        .add-to-cart { background: #5c6ac4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        .widget-container {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .product-card {
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            transition: box-shadow 0.3s ease;
+        }
+        .product-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        .add-to-cart {
+            background: #5c6ac4;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: background 0.3s ease;
+        }
+        .add-to-cart:hover {
+            background: #4c5ac0;
+        }
+        .add-to-cart:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
 
         /* Стили для мини-корзины */
         .mini-cart {
@@ -19,11 +62,12 @@
             right: 20px;
             background: white;
             padding: 10px 15px;
-            border-radius: 4px;
+            border-radius: 25px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
             align-items: center;
             z-index: 1000;
+            border: 2px solid #5c6ac4;
         }
         .cart-icon {
             font-size: 20px;
@@ -31,6 +75,26 @@
         }
         .cart-count {
             font-weight: bold;
+            color: #5c6ac4;
+            min-width: 20px;
+            text-align: center;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .user-info {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            padding: 20px;
         }
     </style>
 </head>
@@ -43,6 +107,10 @@
 
 <!-- Основной контейнер с товарами -->
 <div class="widget-container">
+    <div id="user-info" class="user-info" style="display: none;">
+        <strong>Пользователь:</strong> <span id="user-name"></span>
+    </div>
+
     <h2>Наши товары</h2>
     <div id="product-grid" class="product-grid">
         <div class="loading">Загрузка товаров...</div>
@@ -50,31 +118,91 @@
 </div>
 
 <script>
-    // 1. Конфигурация Shopify
+    // ИСПРАВЛЕНИЕ 1: Определяем правильный origin
+    let parentOrigin = '*'; // Используем wildcard для разработки
+
+    // Пытаемся определить origin родительского окна
+    try {
+        if (document.referrer) {
+            parentOrigin = new URL(document.referrer).origin;
+            console.log("Parent origin detected from referrer:", parentOrigin);
+        } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+            parentOrigin = window.location.ancestorOrigins[0];
+            console.log("Parent origin detected from ancestorOrigins:", parentOrigin);
+        } else {
+            console.log("Using wildcard origin for development");
+        }
+    } catch (e) {
+        console.log("Error detecting parent origin, using wildcard:", e.message);
+        parentOrigin = '*';
+    }
+
+    // 1. Конфигурация Shopify - ИСПРАВЛЕНИЕ 2: Убираем создание корзины
     const shopifyConfig = {
         storeDomain: 'iframe-testgena.myshopify.com',
         storefrontAccessToken: '94163a744c2ca7805ce698f46e56f601',
         apiVersion: '2024-04'
     };
 
-    let currentCartId = null;
+    let userData = null;
 
-    // 2. Универсальная функция для запросов
-    async function shopifyRequest(query, variables = {}) {
-        try {
-            const response = await fetch(
-                `https://${shopifyConfig.storeDomain}/api/${shopifyConfig.apiVersion}/graphql.json`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken
-                    },
-                    body: JSON.stringify({ query, variables })
+    // 2. Система сообщений для связи с родительским окном
+    const messageSystem = {
+        send(message) {
+            return new Promise((resolve, reject) => {
+                const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+                const timeout = setTimeout(() => {
+                    console.error('Message timeout for:', message.type);
+                    reject(new Error('Request timeout'));
+                }, 15000); // Увеличили timeout
+
+                // Сохраняем промис для разрешения позже
+                window.pendingRequests = window.pendingRequests || new Map();
+                window.pendingRequests.set(requestId, { resolve, reject, timeout });
+
+                console.log('Sending message to parent:', message.type, 'ID:', requestId);
+
+                // Отправляем сообщение родительскому окну
+                try {
+                    parent.postMessage({
+                        ...message,
+                        _requestId: requestId
+                    }, parentOrigin);
+                } catch (error) {
+                    console.error('Failed to send message:', error);
+                    clearTimeout(timeout);
+                    window.pendingRequests.delete(requestId);
+                    reject(error);
                 }
-            );
+            });
+        }
+    };
+
+    // 3. Универсальная функция для запросов к Shopify (только для получения товаров)
+    async function shopifyRequest(query, variables = {}) {
+        const url = `https://${shopifyConfig.storeDomain}/api/${shopifyConfig.apiVersion}/graphql.json`;
+
+        console.log('Making Shopify request to:', url);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Storefront-Access-Token': shopifyConfig.storefrontAccessToken,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ query, variables })
+            });
+
+            console.log('Shopify response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
             const data = await response.json();
+            console.log('Shopify response data:', data);
 
             if (data.errors) {
                 throw new Error(data.errors.map(e => e.message).join(', '));
@@ -87,124 +215,59 @@
         }
     }
 
-    // 3. Функция создания корзины
-    async function createCart() {
-        const mutation = `
-            mutation {
-                cartCreate(input: {}) {
-                    cart {
-                        id
-                        checkoutUrl
-                        totalQuantity
-                    }
-                }
-            }
-        `;
-
-        const result = await shopifyRequest(mutation);
-        currentCartId = result.data.cartCreate.cart.id;
-        localStorage.setItem('shopifyCartId', currentCartId);
-        return result.data.cartCreate.cart;
-    }
-
-    // 4. Функция получения данных корзины
-    async function getCart() {
-        if (!currentCartId) return null;
-
-        const query = `
-            query GetCart($cartId: ID!) {
-                cart(id: $cartId) {
-                    id
-                    totalQuantity
-                    lines(first: 10) {
-                        edges {
-                            node {
-                                quantity
-                                merchandise {
-                                    ... on ProductVariant {
-                                        id
-                                        title
-                                        product {
-                                            title
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        `;
-
-        const result = await shopifyRequest(query, { cartId: currentCartId });
-        return result.data.cart;
-    }
-
-    // 5. Функция обновления UI корзины
-    async function updateCartUI() {
-        const cart = await getCart();
-        const counter = document.getElementById('cart-counter');
-
-        if (cart) {
-            counter.textContent = cart.totalQuantity;
-        } else {
-            counter.textContent = '0';
-        }
-    }
-
-    // 6. Функция добавления в корзину
+    // 4. ИСПРАВЛЕНИЕ 2: Используем родительскую корзину
     async function addToCart(variantId, quantity = 1) {
         try {
-            if (!currentCartId) {
-                await createCart();
-            }
-
-            const mutation = `
-                mutation AddToCart($cartId: ID!, $variantId: ID!, $quantity: Int!) {
-                    cartLinesAdd(
-                        cartId: $cartId,
-                        lines: [{ merchandiseId: $variantId, quantity: $quantity }]
-                    ) {
-                        cart {
-                            id
-                            totalQuantity
-                        }
-                        userErrors {
-                            field
-                            message
-                        }
-                    }
-                }
-            `;
-
-            const result = await shopifyRequest(mutation, {
-                cartId: currentCartId,
-                variantId,
-                quantity
+            const result = await messageSystem.send({
+                type: "add-to-cart",
+                payload: { variantId, quantity }
             });
 
-            if (result.data.cartLinesAdd.userErrors.length > 0) {
-                throw new Error(result.data.cartLinesAdd.userErrors[0].message);
+            if (result && result.success) {
+                updateCartCounter(result.cartData);
+                return result;
+            } else {
+                throw new Error(result?.message || 'Ошибка добавления в корзину');
             }
-
-            // Обновляем UI корзины
-            await updateCartUI();
-
-            return result.data.cartLinesAdd.cart;
         } catch (error) {
             console.error('Add to cart error:', error);
-
-            // Если ошибка связана с корзиной, пробуем создать новую
-            if (error.message.includes('cart')) {
-                currentCartId = null;
-                return addToCart(variantId, quantity);
-            }
-
             throw error;
         }
     }
 
-    // 7. Функция загрузки товаров
+    // 5. Получение данных корзины из родительского окна
+    async function getCartFromParent() {
+        try {
+            const result = await messageSystem.send({
+                type: "get-cart",
+                payload: {}
+            });
+
+            if (result && result.success) {
+                updateCartCounter(result.cartData);
+                return result.cartData;
+            }
+        } catch (error) {
+            console.error('Get cart error:', error);
+        }
+        return null;
+    }
+
+    // 6. Обновление счетчика корзины
+    function updateCartCounter(cartData) {
+        const counter = document.getElementById('cart-counter');
+        if (counter && cartData) {
+            counter.textContent = cartData.item_count || 0;
+
+            // Анимация обновления
+            counter.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                counter.style.transform = 'scale(1)';
+            }, 200);
+        }
+    }
+
+    // 7. Функция загрузки товаров (остается через Storefront API)
     async function loadProducts() {
         const query = `
             {
@@ -214,7 +277,7 @@
                             id
                             title
                             description
-                            variants(first: 10) {
+                            variants(first: 1) {
                                 edges {
                                     node {
                                         id
@@ -227,6 +290,13 @@
                                         image {
                                             url
                                         }
+                                    }
+                                }
+                            }
+                            images(first: 1) {
+                                edges {
+                                    node {
+                                        url
                                     }
                                 }
                             }
@@ -251,7 +321,7 @@
         container.innerHTML = '';
 
         if (products.length === 0) {
-            container.innerHTML = '<p>Товары не найдены</p>';
+            container.innerHTML = '<p class="error">Товары не найдены</p>';
             return;
         }
 
@@ -259,66 +329,168 @@
             if (!product.variants.edges.length) return;
 
             const variant = product.variants.edges[0].node;
+            const imageUrl = variant.image?.url || product.images.edges[0]?.node.url;
+
             const card = document.createElement('div');
             card.className = 'product-card';
 
             card.innerHTML = `
-                <h3>${product.title}</h3>
-                ${variant.image ? `<img src="${variant.image.url}" class="product-image">` : ''}
-                <p>${variant.price.amount} ${variant.price.currencyCode}</p>
-                <button class="add-to-cart" data-variant="${variant.id}">
-                    Добавить в корзину
+                <h3 style="margin-top: 0; color: #333; font-size: 16px;">${product.title}</h3>
+                ${imageUrl ? `<img src="${imageUrl}" class="product-image" alt="${product.title}">` : ''}
+                <p style="font-weight: bold; color: #5c6ac4; margin: 10px 0;">${variant.price.amount} ${variant.price.currencyCode}</p>
+                <button class="add-to-cart" data-variant="${variant.id}" ${!variant.availableForSale ? 'disabled' : ''}>
+                    ${variant.availableForSale ? 'Добавить в корзину' : 'Нет в наличии'}
                 </button>
             `;
 
             container.appendChild(card);
         });
 
-        // Добавляем обработчики событий
-        document.querySelectorAll('.add-to-cart').forEach(button => {
+        // Добавляем обработчики событий для кнопок
+        document.querySelectorAll('.add-to-cart:not([disabled])').forEach(button => {
             button.addEventListener('click', async function() {
                 const variantId = this.dataset.variant;
+                const originalText = this.textContent;
+
                 this.disabled = true;
                 this.textContent = 'Добавляем...';
 
                 try {
                     await addToCart(variantId);
                     this.textContent = 'Добавлено!';
+                    this.style.background = '#28a745';
+
                     setTimeout(() => {
-                        this.textContent = 'Добавить в корзину';
+                        this.textContent = originalText;
+                        this.style.background = '';
                         this.disabled = false;
                     }, 2000);
                 } catch (error) {
                     this.textContent = 'Ошибка';
+                    this.style.background = '#dc3545';
+
                     setTimeout(() => {
-                        this.textContent = 'Добавить в корзину';
+                        this.textContent = originalText;
+                        this.style.background = '';
                         this.disabled = false;
                     }, 2000);
+
                     alert('Ошибка: ' + error.message);
                 }
             });
         });
     }
 
-    // 9. Инициализация при загрузке страницы
-    document.addEventListener('DOMContentLoaded', async () => {
-        // Проверяем сохраненную корзину
-        const savedCartId = localStorage.getItem('shopifyCartId');
-        if (savedCartId) currentCartId = savedCartId;
+    // 9. Обработчик сообщений от родительского окна
+    window.addEventListener("message", (event) => {
+        console.log("Raw message received:", event);
+        console.log("Message origin:", event.origin);
+        console.log("Expected parent origin:", parentOrigin);
+        console.log("Message data:", event.data);
 
-        // Загружаем корзину и обновляем UI
-        await updateCartUI();
+        // ИСПРАВЛЕНИЕ 1: Более гибкая проверка origin для разработки
+        if (parentOrigin !== '*' && event.origin !== parentOrigin && !event.origin.includes('shopify')) {
+            console.log("Ignored message from unexpected origin:", event.origin);
+            return;
+        }
 
-        // Загружаем и отображаем товары
-        try {
-            const products = await loadProducts();
-            renderProducts(products);
-        } catch (error) {
-            document.getElementById('product-grid').innerHTML = `
-                <p style="color: red;">Ошибка загрузки товаров: ${error.message}</p>
-            `;
+        const { type, payload, _requestId, _deliveryConfirm } = event.data || {};
+
+        console.log("Processing message type:", type, "ID:", _requestId);
+
+        // Обработка ответов на наши запросы
+        if (_deliveryConfirm && _requestId && window.pendingRequests?.has(_requestId)) {
+            console.log("Resolving pending request:", _requestId);
+            const { resolve, timeout } = window.pendingRequests.get(_requestId);
+            clearTimeout(timeout);
+            window.pendingRequests.delete(_requestId);
+            resolve(payload);
+            return;
+        }
+
+        // Обработка входящих данных
+        switch (type) {
+            case "user-data":
+                console.log("Received user data:", payload);
+                userData = payload;
+                displayUserInfo(userData);
+                // Подтверждаем получение
+                try {
+                    parent.postMessage({
+                        _deliveryConfirm: true,
+                        _requestId: _requestId,
+                        payload: { received: true }
+                    }, parentOrigin);
+                } catch (error) {
+                    console.error("Failed to send confirmation:", error);
+                }
+                break;
+            default:
+                console.log("Unknown message type:", type);
         }
     });
+
+    // 10. Отображение информации о пользователе
+    function displayUserInfo(user) {
+        if (user && user.name) {
+            const userInfo = document.getElementById('user-info');
+            const userName = document.getElementById('user-name');
+            userName.textContent = user.name;
+            userInfo.style.display = 'block';
+        }
+    }
+
+    // 11. Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', async () => {
+        console.log("Iframe loaded, initializing...");
+
+        // Даем время на установку связи с родительским окном
+        setTimeout(async () => {
+            // Сообщаем родительскому окну, что мы готовы
+            try {
+                console.log("Sending ready message to parent");
+                parent.postMessage({
+                    type: "ready",
+                    payload: { status: "loaded" }
+                }, parentOrigin);
+            } catch (error) {
+                console.error("Failed to send ready message:", error);
+            }
+
+            // Получаем текущую корзину (с задержкой для установки связи)
+            setTimeout(async () => {
+                try {
+                    console.log("Requesting cart from parent...");
+                    await getCartFromParent();
+                } catch (error) {
+                    console.error("Failed to get cart from parent:", error);
+                }
+            }, 1000);
+
+            // Загружаем и отображаем товары
+            try {
+                console.log("Loading products...");
+                const products = await loadProducts();
+                console.log("Products loaded:", products.length);
+                renderProducts(products);
+            } catch (error) {
+                console.error("Error loading products:", error);
+                document.getElementById('product-grid').innerHTML = `
+                    <p class="error">Ошибка загрузки товаров: ${error.message}</p>
+                    <p style="font-size: 12px; color: #666;">
+                        Проверьте CORS настройки и доступность Shopify API<br>
+                        Domain: ${shopifyConfig.storeDomain}<br>
+                        Token: ${shopifyConfig.storefrontAccessToken ? 'Установлен' : 'Не установлен'}
+                    </p>
+                `;
+            }
+        }, 500);
+    });
+
+    // 12. Периодическое обновление корзины
+    setInterval(async () => {
+        await getCartFromParent();
+    }, 30000);
 </script>
 </body>
 </html>
